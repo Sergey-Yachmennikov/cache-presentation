@@ -1,0 +1,156 @@
+openapi: 3.0.3
+info:
+  title: Cache Presentation API
+  description: REST API для демонстрации стратегии кэширования Cache-Aside (Spring + Redis + PostgreSQL)
+  version: 0.0.1
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: Products
+    description: CRUD операции над продуктами с Cache-Aside кэшированием
+
+paths:
+  /products:
+    get:
+      tags: [Products]
+      summary: Получить все продукты
+      description: |
+        **Cache-Aside READ (список)**
+        - HIT — возвращает список из Redis (ключ `products::all`)
+        - MISS — загружает из PostgreSQL, кладёт в Redis на 60 сек
+      operationId: getAllProducts
+      responses:
+        '200':
+          description: Список продуктов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+
+    post:
+      tags: [Products]
+      summary: Создать продукт
+      description: |
+        **Cache-Aside WRITE**
+        - Сохраняет в PostgreSQL
+        - Кладёт новый объект в Redis под ключом `products::{id}`
+        - Инвалидирует `products::all`
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+      responses:
+        '200':
+          description: Созданный продукт
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+
+  /products/{id}:
+    get:
+      tags: [Products]
+      summary: Получить продукт по ID
+      description: |
+        **Cache-Aside READ**
+        - HIT — возвращает объект из Redis (ключ `products::{id}`)
+        - MISS — загружает из PostgreSQL, кладёт в Redis на 60 сек
+      operationId: getProductById
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Продукт найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '500':
+          description: Продукт не найден
+
+    put:
+      tags: [Products]
+      summary: Обновить продукт
+      description: |
+        **Cache-Aside WRITE**
+        - Обновляет запись в PostgreSQL
+        - Обновляет объект в Redis под ключом `products::{id}`
+        - Инвалидирует `products::all`
+      operationId: updateProduct
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+      responses:
+        '200':
+          description: Обновлённый продукт
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+
+    delete:
+      tags: [Products]
+      summary: Удалить продукт
+      description: |
+        **Cache-Aside DELETE**
+        - Удаляет из PostgreSQL
+        - Инвалидирует `products::{id}` и `products::all` в Redis
+      operationId: deleteProduct
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '204':
+          description: Продукт удалён
+
+components:
+  parameters:
+    ProductId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        example: 1
+
+  schemas:
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+          example: 1
+        name:
+          type: string
+          example: MacBook Pro
+        price:
+          type: number
+          format: decimal
+          example: 199999.99
+
+    ProductRequest:
+      type: object
+      required: [name, price]
+      properties:
+        name:
+          type: string
+          example: MacBook Pro
+        price:
+          type: number
+          format: decimal
+          example: 199999.99

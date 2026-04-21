@@ -1,3 +1,27 @@
 spring:
   application:
     name: cache-presentation
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/cachedb
+    username: cache_user
+    password: cache_pass
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 60s
