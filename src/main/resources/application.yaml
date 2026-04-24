@@ -15,6 +15,10 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        jdbc:
+          batch_size: 50 # необходимо для массовой вставки
+        order_inserts: true
+        order_updates: true
 
   data:
     redis:
