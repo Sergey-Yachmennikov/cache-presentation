@@ -5,19 +5,18 @@ import com.yachmennikov.cache_presentation.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 /**
- * Cache-Aside (Lazy Loading) стратегия кэширования.
+ * Cache-Aside (Lazy Loading) стратегия кэширования. Кеш обновляется только при чтении.
  *
  * Принцип работы:
  * 1. READ  — приложение сначала ищет данные в кэше.
  *            При MISS — загружает из БД и кладёт в кэш.      (@Cacheable)
- * 2. WRITE — приложение пишет в БД, затем обновляет кэш.     (@CachePut)
+ * 2. WRITE — приложение пишет в БД, затем инвалидирует кэш.  (@CacheEvict)
  * 3. DELETE — приложение удаляет из БД и инвалидирует кэш.   (@CacheEvict)
  */
 @Slf4j
@@ -50,25 +49,26 @@ public class ProductService {
     }
 
     /**
-     * Cache-Aside WRITE:
-     * Сохраняет в БД, затем @CachePut кладёт актуальный объект в Redis.
+     * Cache-Aside CREATE:
+     * Создаёт новую запись в БД. Кэш не затрагивается —
+     * новый id ещё не закэширован, первый GET заполнит кэш через @Cacheable.
      */
-    @CachePut(value = "products", key = "#result.id")
     public Product save(Product product) {
         Product saved = repository.save(product);
-        log.info("[DB] Saved product {}, cache updated", saved.getId());
+        log.info("[DB] Saved product {}", saved.getId());
         return saved;
     }
 
     /**
      * Cache-Aside UPDATE:
-     * Обновляет запись в БД, затем @CachePut кладёт актуальный объект в Redis.
+     * Обновляет в БД, затем инвалидирует кэш (@CacheEvict).
+     * Следующий GET сделает cache miss и сам заполнит кэш через @Cacheable.
      */
-    @CachePut(value = "products", key = "#id")
+    @CacheEvict(value = "products", key = "#id")
     public Product update(Long id, Product product) {
         product.setId(id);
         Product updated = repository.save(product);
-        log.info("[DB] Updated product {}, cache updated", id);
+        log.info("[DB] Updated product {}, cache evicted", id);
         return updated;
     }
 

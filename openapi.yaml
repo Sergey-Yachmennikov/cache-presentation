@@ -18,9 +18,9 @@ paths:
       tags: [Products]
       summary: Получить все продукты
       description: |
-        **Cache-Aside READ (список)**
-        - HIT — возвращает список из Redis (ключ `products::all`)
-        - MISS — загружает из PostgreSQL, кладёт в Redis на 60 сек
+        **Без кэширования**
+        - Всегда загружает из PostgreSQL
+        - Коллекции не кэшируются — быстро устаревают и требуют сложной инвалидации
       operationId: getAllProducts
       responses:
         '200':
@@ -36,10 +36,10 @@ paths:
       tags: [Products]
       summary: Создать продукт
       description: |
-        **Cache-Aside WRITE**
+        **Cache-Aside CREATE**
         - Сохраняет в PostgreSQL
-        - Кладёт новый объект в Redis под ключом `products::{id}`
-        - Инвалидирует `products::all`
+        - Кэш не затрагивается — новый id ещё не закэширован
+        - Первый `GET /{id}` заполнит кэш через cache miss
       operationId: createProduct
       requestBody:
         required: true
@@ -80,10 +80,10 @@ paths:
       tags: [Products]
       summary: Обновить продукт
       description: |
-        **Cache-Aside WRITE**
+        **Cache-Aside UPDATE**
         - Обновляет запись в PostgreSQL
-        - Обновляет объект в Redis под ключом `products::{id}`
-        - Инвалидирует `products::all`
+        - Инвалидирует `products::{id}` в Redis
+        - Следующий `GET /{id}` сделает cache miss и заполнит кэш из БД
       operationId: updateProduct
       parameters:
         - $ref: '#/components/parameters/ProductId'
@@ -107,7 +107,7 @@ paths:
       description: |
         **Cache-Aside DELETE**
         - Удаляет из PostgreSQL
-        - Инвалидирует `products::{id}` и `products::all` в Redis
+        - Инвалидирует `products::{id}` в Redis
       operationId: deleteProduct
       parameters:
         - $ref: '#/components/parameters/ProductId'
