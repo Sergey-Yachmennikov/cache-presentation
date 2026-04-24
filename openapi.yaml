@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Cache Presentation API
-  description: REST API для демонстрации стратегии кэширования Cache-Aside (Spring + Redis + PostgreSQL)
+  description: REST API для демонстрации стратегий кэширования Cache-Aside и Write-Through (Spring + Redis + PostgreSQL)
   version: 0.0.1
 
 servers:
@@ -11,6 +11,8 @@ servers:
 tags:
   - name: Products
     description: CRUD операции над продуктами с Cache-Aside кэшированием
+  - name: Orders
+    description: CRUD операции над заказами с Write-Through кэшированием
 
 paths:
   /products:
@@ -115,9 +117,120 @@ paths:
         '204':
           description: Продукт удалён
 
+  /orders:
+    get:
+      tags: [Orders]
+      summary: Получить все заказы
+      description: |
+        **Без кэширования**
+        - Всегда загружает из PostgreSQL
+      operationId: getAllOrders
+      responses:
+        '200':
+          description: Список заказов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+
+    post:
+      tags: [Orders]
+      summary: Создать заказ
+      description: |
+        **Write-Through CREATE**
+        - Сохраняет в PostgreSQL
+        - Кэш не затрагивается — новый id ещё не закэширован
+        - Первый `GET /{id}` заполнит кэш через cache miss
+      operationId: createOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderRequest'
+      responses:
+        '200':
+          description: Созданный заказ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+  /orders/{id}:
+    get:
+      tags: [Orders]
+      summary: Получить заказ по ID
+      description: |
+        **Write-Through READ**
+        - HIT — возвращает объект из Redis (ключ `orders::{id}`)
+        - MISS — загружает из PostgreSQL, кладёт в Redis на 60 сек
+      operationId: getOrderById
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: Заказ найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '500':
+          description: Заказ не найден
+
+    put:
+      tags: [Orders]
+      summary: Обновить заказ
+      description: |
+        **Write-Through UPDATE**
+        - Обновляет запись в PostgreSQL
+        - Одновременно обновляет `orders::{id}` в Redis
+        - Следующий `GET /{id}` всегда получит HIT с актуальными данными
+        - Отличие от Cache-Aside: кэш обновляется, а не инвалидируется
+      operationId: updateOrder
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderRequest'
+      responses:
+        '200':
+          description: Обновлённый заказ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+    delete:
+      tags: [Orders]
+      summary: Удалить заказ
+      description: |
+        **Write-Through DELETE**
+        - Удаляет из PostgreSQL
+        - Инвалидирует `orders::{id}` в Redis
+      operationId: deleteOrder
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '204':
+          description: Заказ удалён
+
 components:
   parameters:
     ProductId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        example: 1
+
+    OrderId:
       name: id
       in: path
       required: true
@@ -154,3 +267,39 @@ components:
           type: number
           format: decimal
           example: 199999.99
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+          example: 1
+        customerName:
+          type: string
+          example: Иван Иванов
+        status:
+          type: string
+          enum: [PENDING, PROCESSING, SHIPPED, DELIVERED, CANCELLED]
+          example: PENDING
+        totalAmount:
+          type: number
+          format: decimal
+          example: 15999.99
+
+    OrderRequest:
+      type: object
+      required: [customerName, status, totalAmount]
+      properties:
+        customerName:
+          type: string
+          example: Иван Иванов
+        status:
+          type: string
+          enum: [PENDING, PROCESSING, SHIPPED, DELIVERED, CANCELLED]
+          example: PENDING
+        totalAmount:
+          type: number
+          format: decimal
+          example: 15999.99
