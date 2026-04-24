@@ -41,9 +41,9 @@ public class ProductService {
     }
 
     /**
-     * Список продуктов кэшируется под единым ключом "all".
+     * Список продуктов не кэшируется — коллекции быстро устаревают
+     * и требуют сложной инвалидации при любом изменении.
      */
-    @Cacheable(value = "products", key = "'all'")
     public List<Product> findAll() {
         log.info("[DB] Loading all products from database");
         return repository.findAll();
@@ -52,10 +52,8 @@ public class ProductService {
     /**
      * Cache-Aside WRITE:
      * Сохраняет в БД, затем @CachePut кладёт актуальный объект в Redis.
-     * Кэш "products::all" инвалидируется, чтобы список не устарел.
      */
     @CachePut(value = "products", key = "#result.id")
-    @CacheEvict(value = "products", key = "'all'")
     public Product save(Product product) {
         Product saved = repository.save(product);
         log.info("[DB] Saved product {}, cache updated", saved.getId());
@@ -63,19 +61,24 @@ public class ProductService {
     }
 
     /**
+     * Cache-Aside UPDATE:
+     * Обновляет запись в БД, затем @CachePut кладёт актуальный объект в Redis.
+     */
+    @CachePut(value = "products", key = "#id")
+    public Product update(Long id, Product product) {
+        product.setId(id);
+        Product updated = repository.save(product);
+        log.info("[DB] Updated product {}, cache updated", id);
+        return updated;
+    }
+
+    /**
      * Cache-Aside DELETE:
      * Удаляет из БД, затем @CacheEvict вытесняет запись из Redis.
-     * Кэш "products::all" также инвалидируется.
      */
-    @CacheEvict(value = "products", allEntries = false, key = "#id")
+    @CacheEvict(value = "products", key = "#id")
     public void delete(Long id) {
         repository.deleteById(id);
         log.info("[DB] Deleted product {}, cache evicted", id);
-        evictAllCache();
-    }
-
-    @CacheEvict(value = "products", key = "'all'")
-    public void evictAllCache() {
-        // инвалидация списка при удалении
     }
 }

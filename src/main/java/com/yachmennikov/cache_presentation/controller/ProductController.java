@@ -32,10 +32,10 @@ public class ProductController {
         return ResponseEntity.ok(productService.save(product));
     }
 
+    // Cache-Aside UPDATE: обновление в PostgreSQL + обновление записи в Redis
     @PutMapping("/{id}")
     public ResponseEntity<Product> update(@PathVariable Long id, @RequestBody Product product) {
-        product.setId(id);
-        return ResponseEntity.ok(productService.save(product));
+        return ResponseEntity.ok(productService.update(id, product));
     }
 
     // Cache-Aside DELETE: удаление из PostgreSQL + инвалидация Redis
