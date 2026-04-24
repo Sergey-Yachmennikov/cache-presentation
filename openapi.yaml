@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Cache Presentation API
-  description: REST API для демонстрации стратегий кэширования Cache-Aside и Write-Through (Spring + Redis + PostgreSQL)
-  version: 0.0.1
+  description: REST API для демонстрации стратегий кэширования Cache-Aside, Write-Through, Write-Behind и Read-Through (Spring + Redis + Caffeine + PostgreSQL)
+  version: 0.0.2
 
 servers:
   - url: http://localhost:8080
@@ -10,9 +10,13 @@ servers:
 
 tags:
   - name: Products
-    description: CRUD операции над продуктами с Cache-Aside кэшированием
+    description: CRUD операции над продуктами — Cache-Aside (Redis)
   - name: Orders
-    description: CRUD операции над заказами с Write-Through кэшированием
+    description: CRUD операции над заказами — Write-Through (Redis)
+  - name: Notifications
+    description: CRUD операции над уведомлениями — Write-Behind (Redis + Scheduler)
+  - name: Categories
+    description: CRUD операции над категориями — Read-Through (Caffeine)
 
 paths:
   /products:
@@ -219,6 +223,212 @@ paths:
         '204':
           description: Заказ удалён
 
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: Получить все уведомления
+      description: |
+        **Без кэширования**
+        - Всегда загружает из PostgreSQL
+      operationId: getAllNotifications
+      responses:
+        '200':
+          description: Список уведомлений
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+
+    post:
+      tags: [Notifications]
+      summary: Создать уведомление
+      description: |
+        **Write-Behind CREATE**
+        - Генерирует UUID в приложении (не ждёт БД)
+        - Пишет ТОЛЬКО в Redis — возвращает ответ немедленно
+        - ID помещается в dirty queue
+        - Шедулер сохранит запись в PostgreSQL в течение 5 секунд
+      operationId: createNotification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationRequest'
+      responses:
+        '200':
+          description: Созданное уведомление (уже в кэше, ещё не в БД)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+
+  /notifications/{id}:
+    get:
+      tags: [Notifications]
+      summary: Получить уведомление по ID
+      description: |
+        **Write-Behind READ**
+        - HIT — возвращает объект из Redis (ключ `notifications::{id}`)
+        - MISS — загружает из PostgreSQL, кладёт в Redis на 60 сек
+      operationId: getNotificationById
+      parameters:
+        - $ref: '#/components/parameters/NotificationId'
+      responses:
+        '200':
+          description: Уведомление найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '500':
+          description: Уведомление не найдено
+
+    put:
+      tags: [Notifications]
+      summary: Обновить уведомление
+      description: |
+        **Write-Behind UPDATE**
+        - Обновляет ТОЛЬКО Redis — возвращает ответ немедленно
+        - ID помещается в dirty queue
+        - Шедулер обновит запись в PostgreSQL в течение 5 секунд
+      operationId: updateNotification
+      parameters:
+        - $ref: '#/components/parameters/NotificationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationRequest'
+      responses:
+        '200':
+          description: Обновлённое уведомление
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+
+    delete:
+      tags: [Notifications]
+      summary: Удалить уведомление
+      description: |
+        **Write-Behind DELETE**
+        - Убирает ID из dirty queue
+        - Инвалидирует кэш в Redis
+        - Удаляет из PostgreSQL напрямую
+      operationId: deleteNotification
+      parameters:
+        - $ref: '#/components/parameters/NotificationId'
+      responses:
+        '204':
+          description: Уведомление удалено
+
+  /categories:
+    get:
+      tags: [Categories]
+      summary: Получить все категории
+      description: |
+        **Без кэширования**
+        - Всегда загружает из PostgreSQL
+      operationId: getAllCategories
+      responses:
+        '200':
+          description: Список категорий
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+
+    post:
+      tags: [Categories]
+      summary: Создать категорию
+      description: |
+        **Read-Through CREATE**
+        - Сохраняет в PostgreSQL
+        - Кэш не затрагивается — новый id ещё не закэширован
+        - Первый `GET /{id}` даст cache miss — CacheLoader загрузит из БД
+      operationId: createCategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+      responses:
+        '200':
+          description: Созданная категория
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+
+  /categories/{id}:
+    get:
+      tags: [Categories]
+      summary: Получить категорию по ID
+      description: |
+        **Read-Through READ**
+        - HIT — Caffeine возвращает данные из кэша
+        - MISS — **CacheLoader** (определён в конфигурации кэша, не в сервисе)
+                 автоматически загружает данные из PostgreSQL и кладёт в Caffeine
+        - Приложение обращается только к кэшу — не знает о БД
+      operationId: getCategoryById
+      parameters:
+        - $ref: '#/components/parameters/CategoryId'
+      responses:
+        '200':
+          description: Категория найдена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '500':
+          description: Категория не найдена
+
+    put:
+      tags: [Categories]
+      summary: Обновить категорию
+      description: |
+        **Read-Through UPDATE**
+        - Обновляет запись в PostgreSQL
+        - Инвалидирует `categories::{id}` в Caffeine
+        - Следующий `GET /{id}` даст cache miss — CacheLoader загрузит свежие данные
+      operationId: updateCategory
+      parameters:
+        - $ref: '#/components/parameters/CategoryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+      responses:
+        '200':
+          description: Обновлённая категория
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+
+    delete:
+      tags: [Categories]
+      summary: Удалить категорию
+      description: |
+        **Read-Through DELETE**
+        - Удаляет из PostgreSQL
+        - Инвалидирует `categories::{id}` в Caffeine
+      operationId: deleteCategory
+      parameters:
+        - $ref: '#/components/parameters/CategoryId'
+      responses:
+        '204':
+          description: Категория удалена
+
 components:
   parameters:
     ProductId:
@@ -231,6 +441,24 @@ components:
         example: 1
 
     OrderId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        example: 1
+
+    NotificationId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+        example: 550e8400-e29b-41d4-a716-446655440000
+
+    CategoryId:
       name: id
       in: path
       required: true
@@ -303,3 +531,68 @@ components:
           type: number
           format: decimal
           example: 15999.99
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          example: 550e8400-e29b-41d4-a716-446655440000
+        userId:
+          type: integer
+          format: int64
+          example: 42
+        message:
+          type: string
+          example: Ваш заказ отправлен
+        read:
+          type: boolean
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+          example: '2026-04-24T12:00:00'
+
+    NotificationRequest:
+      type: object
+      required: [userId, message]
+      properties:
+        userId:
+          type: integer
+          format: int64
+          example: 42
+        message:
+          type: string
+          example: Ваш заказ отправлен
+        read:
+          type: boolean
+          example: false
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+          example: 1
+        name:
+          type: string
+          example: Ноутбуки
+        description:
+          type: string
+          example: Портативные компьютеры для работы и игр
+
+    CategoryRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: Ноутбуки
+        description:
+          type: string
+          example: Портативные компьютеры для работы и игр
