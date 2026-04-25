@@ -58,8 +58,8 @@
 		</dependency>
 
 		<dependency>
-			<groupId>com.github.ben-manes.caffeine</groupId>
-			<artifactId>caffeine</artifactId>
+			<groupId>com.hazelcast</groupId>
+			<artifactId>hazelcast</artifactId>
 		</dependency>
 
 		<dependency>

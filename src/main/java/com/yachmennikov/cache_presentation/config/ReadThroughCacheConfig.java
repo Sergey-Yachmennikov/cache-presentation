@@ -1,53 +1,68 @@
 package com.yachmennikov.cache_presentation.config;
 
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.yachmennikov.cache_presentation.repository.CategoryRepository;
+import com.hazelcast.client.HazelcastClient;
+import com.hazelcast.client.config.ClientConfig;
+import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.map.IMap;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.CacheManager;
-import org.springframework.cache.caffeine.CaffeineCacheManager;
+import org.springframework.cache.support.SimpleCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.util.concurrent.TimeUnit;
+import java.util.List;
 
 /**
- * Конфигурация кэша для Read-Through стратегии.
+ * Конфигурация кэша для Read-Through стратегии на базе Hazelcast.
  *
- * Используется Caffeine — единственный провайдер в экосистеме Spring,
- * поддерживающий LoadingCache (кэш с встроенным загрузчиком данных).
+ * Архитектура: client-server.
+ * - Сервер: Hazelcast-нода в Docker (localhost:5701), хранит данные.
+ * - Клиент: Spring-приложение подключается через HazelcastClient.
  *
- * Ключевое отличие от Cache-Aside:
- * - Cache-Aside: при cache miss приложение само идёт в БД и заполняет кэш.
- * - Read-Through: при cache miss кэш сам вызывает CacheLoader и загружает данные.
- *   Приложение работает только с кэшем — не знает о существовании БД.
+ * Почему не MapLoader (стандартный Hazelcast Read-Through)?
+ * MapLoader — серверная концепция: логика загрузки данных выполняется
+ * на ноде-владельце партиции. В client-server режиме сервер (Docker)
+ * не знает о Spring-контексте и репозиториях. Поэтому логику Read-Through
+ * реализуем на стороне клиента в ReadThroughHazelcastCache.
  *
- * CacheLoader определён здесь, в конфигурации кэша — это и есть
- * главное архитектурное отличие Read-Through.
+ * Ключевое отличие от Cache-Aside остаётся в силе:
+ * логика загрузки из БД находится в слое кэша (CategoryMapLoader),
+ * а не в сервисном слое — CategoryService работает только с кэшем.
  */
 @Slf4j
 @Configuration
 public class ReadThroughCacheConfig {
 
     /**
+     * Hazelcast-клиент, подключающийся к серверу в Docker.
+     * destroyMethod = "shutdown" гарантирует корректное закрытие при остановке приложения.
+     */
+    @Bean(destroyMethod = "shutdown")
+    public HazelcastInstance hazelcastClient() {
+        ClientConfig config = new ClientConfig();
+        config.setClusterName("cache-cluster");
+        config.getNetworkConfig().addAddress("localhost:5701");
+        log.info("[HAZELCAST] Connecting to Hazelcast cluster at localhost:5701");
+        return HazelcastClient.newHazelcastClient(config);
+    }
+
+    /**
      * Отдельный CacheManager для Read-Through кэша.
-     * Не помечаем @Primary — основным остаётся Redis CacheManager,
-     * автоконфигурированный Spring Boot для Cache-Aside и Write-Through.
+     * Не помечаем @Primary — основным остаётся Redis CacheManager из CacheConfig.
      *
-     * CacheLoader (функция загрузки из БД) регистрируется здесь,
-     * а не в сервисном слое — в этом суть Read-Through.
+     * SimpleCacheManager хранит заранее сконфигурированные Cache-объекты.
+     * CategoryService обращается к нему явно через cacheManager = "readThroughCacheManager".
      */
     @Bean
-    public CacheManager readThroughCacheManager(CategoryRepository repository) {
-        CaffeineCacheManager manager = new CaffeineCacheManager("categories");
-        manager.setCaffeine(
-                Caffeine.newBuilder()
-                        .expireAfterWrite(60, TimeUnit.SECONDS)
+    public CacheManager readThroughCacheManager(HazelcastInstance hazelcastClient,
+                                                 CategoryMapLoader mapLoader) {
+        IMap<Object, Object> categoriesMap = hazelcastClient.getMap("categories");
+        ReadThroughHazelcastCache cache = new ReadThroughHazelcastCache(
+                "categories", categoriesMap, mapLoader, 60
         );
-        manager.setCacheLoader(key -> {
-            log.info("[CACHE LOADER] Cache miss — loading category {} from database", key);
-            return repository.findById((Long) key)
-                    .orElseThrow(() -> new RuntimeException("Category not found: " + key));
-        });
+
+        SimpleCacheManager manager = new SimpleCacheManager();
+        manager.setCaches(List.of(cache));
         return manager;
     }
 }
