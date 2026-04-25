@@ -1,0 +1,141 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/28.0.4 Chrome/138.0.7204.97 Electron/37.2.1 Safari/537.36" version="28.0.4">
+  <diagram id="read-through-diagram" name="Read-Through Strategy">
+    <mxGraphModel dx="1018" dy="781" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Read-Through Caching Strategy" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=22;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="280" y="12" width="500" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="comp_client" value="Client" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a3a5c;strokeColor=#0d2240;fontSize=14;fontStyle=1;arcSize=50;fontColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="40" y="82" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="comp_app" value="Spring App" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a4d00;strokeColor=#0d2900;fontSize=14;fontStyle=1;fontColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="255" y="82" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="comp_hazelcast" value="Hazelcast Cache" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3d1a6b;strokeColor=#260d4d;fontSize=14;fontStyle=1;fontColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="510" y="82" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="comp_db" value="PostgreSQL" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#7a1a1a;strokeColor=#4d0d0d;fontSize=14;fontStyle=1;direction=south;fontColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="750" y="69" width="140" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="hit_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#145a32;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="18" y="162" width="960" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="miss_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#7a2d00;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="18" y="412" width="960" height="400" as="geometry" />
+        </mxCell>
+        <mxCell id="ll_client" value="" style="endArrow=none;dashed=1;strokeColor=#6c8ebf;strokeWidth=2;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="100" y="132" as="sourcePoint" />
+            <mxPoint x="100" y="815" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll_app" value="" style="endArrow=none;dashed=1;strokeColor=#82b366;strokeWidth=2;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="335" y="132" as="sourcePoint" />
+            <mxPoint x="335" y="815" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll_hazelcast" value="" style="endArrow=none;dashed=1;strokeColor=#7b5ea7;strokeWidth=2;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="590" y="132" as="sourcePoint" />
+            <mxPoint x="590" y="815" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll_db" value="" style="endArrow=none;dashed=1;strokeColor=#b85450;strokeWidth=2;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="820" y="145" as="sourcePoint" />
+            <mxPoint x="820" y="815" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="hit_label" value="✅  CACHE HIT" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=13;fontStyle=1;fontColor=#1a1a1a;" parent="1" vertex="1">
+          <mxGeometry x="28" y="167" width="180" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="miss_label" value="❌  CACHE MISS" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=13;fontStyle=1;fontColor=#1a1a1a;" parent="1" vertex="1">
+          <mxGeometry x="37" y="424" width="200" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="hit1" value="① GET /category/1" style="edgeStyle=none;html=1;fontSize=16;endArrow=block;endFill=1;strokeColor=#444444;fontColor=#ffffff;align=center;fontStyle=0;" parent="1" edge="1">
+          <mxGeometry x="-0.0894" y="-20" relative="1" as="geometry">
+            <mxPoint x="100" y="208" as="sourcePoint" />
+            <mxPoint x="335" y="208" as="targetPoint" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="hit2" value="② cache.get(&quot;categories::1&quot;)" style="edgeStyle=none;html=1;fontSize=16;endArrow=block;endFill=1;strokeColor=#444444;fontColor=#ffffff;align=center;fontStyle=0;" parent="1" edge="1">
+          <mxGeometry x="-0.0275" y="16" relative="1" as="geometry">
+            <mxPoint x="335" y="252" as="sourcePoint" />
+            <mxPoint x="590" y="252" as="targetPoint" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="hit3" value="③ HIT: возвращает Category" style="edgeStyle=none;html=1;fontSize=16;endArrow=open;endFill=0;strokeWidth=2;strokeColor=#145a32;fontColor=#ffffff;fontStyle=0;align=center;" parent="1" edge="1">
+          <mxGeometry x="0.0431" y="-18" relative="1" as="geometry">
+            <mxPoint x="590" y="302" as="sourcePoint" />
+            <mxPoint x="335" y="302" as="targetPoint" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="hit4" value="④ 200 OK  (из кэша, БД не вызывается)" style="edgeStyle=none;html=1;fontSize=16;endArrow=open;endFill=0;strokeWidth=2;strokeColor=#145a32;fontColor=#ffffff;fontStyle=0;align=center;" parent="1" edge="1">
+          <mxGeometry x="0.0128" y="-19" relative="1" as="geometry">
+            <mxPoint x="335" y="358" as="sourcePoint" />
+            <mxPoint x="100" y="358" as="targetPoint" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="miss1" value="① GET /category/1" style="edgeStyle=none;html=1;fontSize=16;endArrow=block;endFill=1;strokeColor=#444444;fontColor=#ffffff;align=center;fontStyle=0;" parent="1" edge="1">
+          <mxGeometry x="-0.0213" y="-15" relative="1" as="geometry">
+            <mxPoint x="100" y="458" as="sourcePoint" />
+            <mxPoint x="335" y="458" as="targetPoint" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="miss2" value="② cache.get(&quot;categories::1&quot;)" style="edgeStyle=none;html=1;fontSize=16;endArrow=block;endFill=1;strokeColor=#444444;fontColor=#ffffff;align=center;fontStyle=0;" parent="1" edge="1">
+          <mxGeometry x="0.0275" y="18" relative="1" as="geometry">
+            <mxPoint x="335" y="502" as="sourcePoint" />
+            <mxPoint x="590" y="502" as="targetPoint" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="miss3" value="③ MISS → CategoryMapLoader.load(1)" style="edgeStyle=none;html=1;fontSize=16;endArrow=block;endFill=1;strokeColor=#444444;fontColor=#ffffff;align=center;fontStyle=0;" parent="1" edge="1">
+          <mxGeometry x="-0.0522" y="23" relative="1" as="geometry">
+            <mxPoint x="590" y="555" as="sourcePoint" />
+            <mxPoint x="820" y="555" as="targetPoint" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="key_note" value="↑ кэш идёт в БД сам, приложение не участвует" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=11;fontStyle=2;fontColor=#7a2d00;" parent="1" vertex="1">
+          <mxGeometry x="280" y="562" width="360" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="miss4" value="④ SELECT * FROM categories WHERE id = 1" style="edgeStyle=none;html=1;fontSize=16;endArrow=block;endFill=1;strokeColor=#444444;fontColor=#ffffff;align=center;fontStyle=0;" parent="1" edge="1">
+          <mxGeometry x="0.0087" y="-18" relative="1" as="geometry">
+            <mxPoint x="590" y="605" as="sourcePoint" />
+            <mxPoint x="820" y="605" as="targetPoint" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="miss5" value="⑤ Category { id, name, description }" style="edgeStyle=none;html=1;fontSize=16;endArrow=open;endFill=0;strokeWidth=2;strokeColor=#003d99;fontColor=#ffffff;fontStyle=2;align=center;" parent="1" edge="1">
+          <mxGeometry x="0.0261" y="19" relative="1" as="geometry">
+            <mxPoint x="820" y="652" as="sourcePoint" />
+            <mxPoint x="590" y="652" as="targetPoint" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="miss6" value="⑥ cache.put(&quot;categories::1&quot;, data, TTL=60s) → возвращает Category" style="edgeStyle=none;html=1;fontSize=16;endArrow=open;endFill=0;strokeWidth=2;strokeColor=#3d1a6b;fontColor=#ffffff;fontStyle=0;align=center;" parent="1" edge="1">
+          <mxGeometry x="-0.5608" y="16" relative="1" as="geometry">
+            <mxPoint x="590" y="715" as="sourcePoint" />
+            <mxPoint x="335" y="715" as="targetPoint" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="miss7" value="⑦ 200 OK  (из кэша, загружено автоматически)" style="edgeStyle=none;html=1;fontSize=16;endArrow=open;endFill=0;strokeWidth=2;strokeColor=#1a5200;fontColor=#ffffff;fontStyle=2;align=center;" parent="1" edge="1">
+          <mxGeometry x="-0.2426" y="-21" relative="1" as="geometry">
+            <mxPoint x="335" y="778" as="sourcePoint" />
+            <mxPoint x="100" y="778" as="targetPoint" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
