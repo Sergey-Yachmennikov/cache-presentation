@@ -1,8 +1,8 @@
 package com.yachmennikov.cache_presentation;
 
-import com.yachmennikov.cache_presentation.entity.Product;
-import com.yachmennikov.cache_presentation.repository.ProductRepository;
-import com.yachmennikov.cache_presentation.service.ProductService;
+import com.yachmennikov.cache_presentation.strategy.cacheaside.Product;
+import com.yachmennikov.cache_presentation.strategy.cacheaside.ProductRepository;
+import com.yachmennikov.cache_presentation.strategy.cacheaside.ProductService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -18,6 +18,11 @@ import java.time.Duration;
 @EnableScheduling
 public class CacheConfig {
 
+    @Bean
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper();
+    }
+
     /**
      * Явно объявляем Redis CacheManager как @Primary.
      * Это необходимо потому, что ReadThroughCacheConfig регистрирует второй бин
@@ -26,11 +31,6 @@ public class CacheConfig {
      * Без @Primary Spring не знает какой CacheManager использовать по умолчанию
      * в @Cacheable без явного cacheManager.
      */
-    @Bean
-    public ObjectMapper objectMapper() {
-        return new ObjectMapper();
-    }
-
     @Bean
     @Primary
     public CacheManager cacheManager(RedisConnectionFactory connectionFactory) {
@@ -43,6 +43,8 @@ public class CacheConfig {
         // @CacheEvict при save() сбрасывает null немедленно, не дожидаясь TTL.
         RedisCacheConfiguration couponsConfig = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(Duration.ofSeconds(30));
+        // null-значения разрешены по умолчанию в RedisCacheConfiguration.
+        // Чтобы запретить — вызвать .disableCachingNullValues()
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)
