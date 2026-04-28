@@ -17,6 +17,10 @@ tags:
     description: CRUD операции над уведомлениями — Write-Behind (Redis + Scheduler)
   - name: Categories
     description: CRUD операции над категориями — Read-Through (Caffeine)
+  - name: Coupons
+    description: Negative Caching — кеширование отсутствия значения (Redis, TTL 30 сек)
+  - name: Jitter Cache
+    description: TTL + Jitter — защита от Cache Stampede / Thundering Herd (Redis)
 
 paths:
   /products:
@@ -429,6 +433,118 @@ paths:
         '204':
           description: Категория удалена
 
+  /coupons:
+    post:
+      tags: [Coupons]
+      summary: Создать купон
+      description: |
+        **Negative Caching CREATE**
+        - Сохраняет купон в PostgreSQL
+        - `@CacheEvict` сбрасывает закешированный `null` для данного `code`
+        - Следующий `GET /{code}` найдёт реальный объект в БД и закеширует его
+      operationId: createCoupon
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CouponRequest'
+      responses:
+        '200':
+          description: Созданный купон
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Coupon'
+
+  /coupons/{code}:
+    get:
+      tags: [Coupons]
+      summary: Получить купон по коду
+      description: |
+        **Negative Caching READ**
+        - HIT (объект) — купон найден в Redis, БД не вызывается → `200`
+        - HIT (null)   — в Redis закешировано отсутствие, БД не вызывается → `404`
+                         **Именно это предотвращает Cache Penetration.**
+        - MISS         — идёт в БД. Результат (объект или `null`) кешируется на 30 сек.
+
+        Проверить в логах: `[DB] Loading coupon 'X'...` появится только при первом
+        запросе к несуществующему коду, пока не истечёт TTL.
+      operationId: getCouponByCode
+      parameters:
+        - $ref: '#/components/parameters/CouponCode'
+      responses:
+        '200':
+          description: Купон найден (из Redis или БД)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Coupon'
+        '404':
+          description: Купон не найден (null закеширован в Redis — БД не вызывалась)
+
+    delete:
+      tags: [Coupons]
+      summary: Удалить купон
+      description: |
+        **Negative Caching DELETE**
+        - Удаляет из PostgreSQL
+        - `@CacheEvict` сбрасывает кеш
+        - Следующий `GET /{code}` снова пойдёт в БД и закеширует `null`
+      operationId: deleteCoupon
+      parameters:
+        - $ref: '#/components/parameters/CouponCode'
+      responses:
+        '204':
+          description: Купон удалён
+
+  /jitter/products/{id}:
+    get:
+      tags: [Jitter Cache]
+      summary: Получить продукт (с TTL + Jitter)
+      description: |
+        **TTL + Jitter READ** — защита от Cache Stampede
+
+        При cache miss загружает из PostgreSQL и кладёт в Redis с TTL = `60 ± 10 сек`
+        (случайный диапазон 50..70 сек).
+
+        **Зачем jitter?**
+        Без него все записи, закешированные одновременно, протухают одновременно
+        → тысячи запросов разом уходят в БД (thundering herd).
+        Случайный разброс TTL размазывает истечение во времени.
+
+        В логах при каждом cache miss виден реальный TTL:
+        ```
+        [CACHE SET] product 3 → TTL 57 sec (base=60, jitter=-3)
+        ```
+      operationId: getProductByIdWithJitter
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Продукт найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '500':
+          description: Продукт не найден
+
+  /jitter/products/{id}/cache:
+    delete:
+      tags: [Jitter Cache]
+      summary: Сбросить кеш продукта (для демонстрации)
+      description: |
+        Удаляет ключ `jitter:product:{id}` из Redis.
+        После этого следующий `GET /jitter/products/{id}` даст cache miss
+        и закеширует продукт с новым случайным TTL.
+      operationId: evictProductJitterCache
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '204':
+          description: Кеш сброшен
+
 components:
   parameters:
     ProductId:
@@ -466,6 +582,14 @@ components:
         type: integer
         format: int64
         example: 1
+
+    CouponCode:
+      name: code
+      in: path
+      required: true
+      schema:
+        type: string
+        example: SAVE10
 
   schemas:
     Product:
@@ -596,3 +720,31 @@ components:
         description:
           type: string
           example: Портативные компьютеры для работы и игр
+
+    Coupon:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+          example: 1
+        code:
+          type: string
+          example: SAVE10
+        discount:
+          type: number
+          format: decimal
+          example: 10.00
+
+    CouponRequest:
+      type: object
+      required: [code, discount]
+      properties:
+        code:
+          type: string
+          example: GHOST
+        discount:
+          type: number
+          format: decimal
+          example: 5.00
